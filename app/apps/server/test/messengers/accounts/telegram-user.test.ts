@@ -89,6 +89,28 @@ describe("Telegram user account in the server", () => {
     expect(login.sentTo).toEqual([]);
   });
 
+  it("gates QR status, returns only QR modules, and clears cancellation", async () => {
+    tg = await start();
+    const app = testApp(repos, { telegramUser: tg, adminPort: ADMIN });
+    const bad = await post(app, "/api/messengers/telegram-user/login/start", { apiId: 1, apiHash: HASH, method: "qr", phone: "+10000000000" });
+    expect(bad.status).toBe(400);
+    const started = await post(app, "/api/messengers/telegram-user/login/start", { apiId: 1, apiHash: HASH, method: "qr" });
+    expect(started.status).toBe(200);
+    expect(started.headers.get("cache-control")).toBe("no-store");
+    const { flow } = await started.json() as { flow: string };
+    login.qrUrl?.("tg://login?token=server-secret", new Date(Date.now() + 30_000));
+    const refused = await post(app, "/api/messengers/telegram-user/login/status", { flow }, { "content-type": "application/json" });
+    expect(refused.status).toBe(403);
+    const status = await post(app, "/api/messengers/telegram-user/login/status", { flow });
+    expect(status.status).toBe(200);
+    expect(status.headers.get("cache-control")).toBe("no-store");
+    const body = await status.text();
+    expect(body).toContain('"step":"qr"');
+    expect(body).not.toMatch(/server-secret|tg:\/\/login|0123456789abcdef/);
+    expect((await post(app, "/api/messengers/telegram-user/login/cancel", { flow })).status).toBe(200);
+    expect((await post(app, "/api/messengers/telegram-user/login/status", { flow })).status).toBe(409);
+  });
+
   it("stores a linked chat's message, and an unlinked one's only as the 30-day cache of a known, unlinked chat (decision 0049)", async () => {
     await connect();
     const adapter = tg?.adapter("42");

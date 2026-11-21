@@ -21,6 +21,15 @@ export type UserLoginStep = {
      */
   flow: string;
 } | {
+  step: 'qr';
+  /**
+     * @minLength 16
+     * @maxLength 64
+     */
+  flow: string;
+  qr: string[] | null;
+  expiresAt: string | null;
+} | {
   step: 'done';
   account: string;
   name: string;

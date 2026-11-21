@@ -241,6 +241,94 @@ describe("telegram user account: login and session", () => {
     expect(stored).toEqual([]);
   });
 
+  it("rotates QR modules, saves only after approval, and replays the completed status", async () => {
+    const login = new FakeLoginClient();
+    const stored: string[] = [];
+    const flows = createLoginFlows({ clientFor: () => login, store: async (_account, s) => void stored.push(s.session) });
+    const start = await flows.start({ apiId: 12345, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    expect(start.step).toBe("qr");
+    const flow = start.step === "qr" ? start.flow : "";
+    expect(start).toEqual({ step: "qr", flow, qr: null, expiresAt: null });
+    const expiry = new Date(Date.now() + 30_000);
+    login.qrUrl?.("tg://login?token=secret-one", expiry);
+    const first = await flows.status(flow);
+    expect(first.step).toBe("qr");
+    if (first.step !== "qr") throw new Error("expected QR");
+    expect(first.qr?.length).toBeGreaterThan(20);
+    expect(first.expiresAt).toBe(expiry.toISOString());
+    expect(JSON.stringify(first)).not.toMatch(/secret-one|tg:\/\/login/);
+    login.qrUrl?.("tg://login?token=secret-two", expiry);
+    expect((await flows.status(flow)).step).toBe("qr");
+    expect((await flows.status(flow) as Extract<typeof first, { step: "qr" }>).qr).not.toEqual(first.qr);
+    expect(stored).toEqual([]);
+    login.qrResolve?.({ id: 42, displayName: "Owner" });
+    await vi.waitFor(async () => expect(await flows.status(flow)).toEqual({ step: "done", account: "42", name: "Owner" }));
+    expect(await flows.status(flow)).toEqual({ step: "done", account: "42", name: "Owner" });
+    expect(stored).toEqual(["SESSION-STRING-OF-THE-FAKE-0123456789"]);
+    expect(flows.size()).toBe(1);
+    await flows.closeAll();
+  });
+
+  it("cancels and expires QR flows without persisting a late login", async () => {
+    let now = Date.now();
+    const login = new FakeLoginClient();
+    const stored: string[] = [];
+    const flows = createLoginFlows({ clientFor: () => login, store: async (account) => void stored.push(account), now: () => now, ttlMs: 1000 });
+    const first = await flows.start({ apiId: 1, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    const flow = first.step === "qr" ? first.flow : "";
+    await flows.cancel(flow);
+    login.qrResolve?.({ id: 42, displayName: "Owner" });
+    await expect(flows.status(flow)).rejects.toThrow(/expired/);
+    expect(stored).toEqual([]);
+    const second = await flows.start({ apiId: 1, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    now += 1001;
+    await expect(flows.status(second.step === "qr" ? second.flow : "")).rejects.toThrow(/expired/);
+    expect(flows.size()).toBe(0);
+    expect(login.closed).toBe(2);
+  });
+
+  it("reports a confirmed QR login while saving even when cancellation or expiry races it", async () => {
+    let now = Date.now();
+    const login = new FakeLoginClient();
+    let finishStore = () => {};
+    const store = vi.fn(() => new Promise<void>((resolve) => { finishStore = resolve; }));
+    const flows = createLoginFlows({ clientFor: () => login, store, now: () => now, ttlMs: 1_000 });
+    const started = await flows.start({ apiId: 1, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    if (started.step !== "qr") throw new Error("expected QR");
+    login.qrResolve?.({ id: 42, displayName: "Owner" });
+    await vi.waitFor(() => expect(store).toHaveBeenCalledOnce());
+    now += 1_001;
+    await expect(flows.cancel(started.flow)).rejects.toThrow(/confirmed/);
+    expect(await flows.status(started.flow)).toEqual({ ...started, qr: null, expiresAt: null });
+    finishStore();
+    await vi.waitFor(async () => expect(await flows.status(started.flow)).toEqual({ step: "done", account: "42", name: "Owner" }));
+    await flows.closeAll();
+  });
+
+  it("accepts a QR account with 2FA after a rejected password", async () => {
+    const login = new FakeLoginClient({ twoFactor: true });
+    const stored: string[] = [];
+    const flows = createLoginFlows({ clientFor: () => login, store: async (account) => void stored.push(account) });
+    const started = await flows.start({ apiId: 1, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    const flow = started.step === "qr" ? started.flow : "";
+    login.qrReject?.(new FakeRpcError(401, "SESSION_PASSWORD_NEEDED"));
+    await vi.waitFor(async () => expect(await flows.status(flow)).toEqual({ step: "password", flow }));
+    await expect(flows.password(flow, "wrong-secret")).rejects.toThrow(/password is wrong/);
+    expect(await flows.status(flow)).toEqual({ step: "password", flow });
+    expect(await flows.password(flow, "pw")).toEqual({ step: "done", account: "42", name: "Owner" });
+    expect(stored).toEqual(["42"]);
+  });
+
+  it("does not return a QR URL embedded in a Telegram error", async () => {
+    const login = new FakeLoginClient();
+    const flows = createLoginFlows({ clientFor: () => login, store: async () => undefined });
+    const started = await flows.start({ apiId: 1, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" });
+    const flow = started.step === "qr" ? started.flow : "";
+    login.qrReject?.(new Error("tg://login?token=secret-from-error"));
+    await vi.waitFor(async () => await expect(flows.status(flow)).rejects.toThrow(/QR login/));
+    await expect(flows.status(flow)).rejects.toThrow(/expired/);
+  });
+
   it("refuses a session file readable by others", () => {
     const d = dir();
     writeSession(d, "telegram_user", "42", { apiId: 1, apiHash: "h".repeat(32), session: "s" });

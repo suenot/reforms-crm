@@ -50,6 +50,7 @@ import type {
   UserLoginCodeBody,
   UserLoginPasswordBody,
   UserLoginStartBody,
+  UserLoginStatusBody,
   UserLoginStep,
   WaConnectFlowBody,
   WaConnectStarted,
@@ -169,6 +170,58 @@ export const startTelegramUserLogin = async (userLoginStartBody: UserLoginStartB
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(userLoginStartBody)
+  }
+);}
+
+
+export type getTelegramUserLoginStatusResponse200 = {
+  data: UserLoginStep
+  status: 200
+}
+
+export type getTelegramUserLoginStatusResponse400 = {
+  data: ApiErrorResponse
+  status: 400
+}
+
+export type getTelegramUserLoginStatusResponse403 = {
+  data: ApiErrorResponse
+  status: 403
+}
+
+export type getTelegramUserLoginStatusResponse409 = {
+  data: ApiErrorResponse
+  status: 409
+}
+
+export type getTelegramUserLoginStatusResponseSuccess = (getTelegramUserLoginStatusResponse200) & {
+  headers: Headers;
+};
+export type getTelegramUserLoginStatusResponseError = (getTelegramUserLoginStatusResponse400 | getTelegramUserLoginStatusResponse403 | getTelegramUserLoginStatusResponse409) & {
+  headers: Headers;
+};
+
+export type getTelegramUserLoginStatusResponse = (getTelegramUserLoginStatusResponseSuccess | getTelegramUserLoginStatusResponseError)
+
+export const getGetTelegramUserLoginStatusUrl = () => {
+
+
+
+
+  return `/api/messengers/telegram-user/login/status`
+}
+
+/**
+ * @summary Read a Telegram QR sign-in
+ */
+export const getTelegramUserLoginStatus = async (userLoginStatusBody: UserLoginStatusBody, options?: Parameters<typeof hubMutator>[1]): Promise<getTelegramUserLoginStatusResponse> => {
+
+  return hubMutator<getTelegramUserLoginStatusResponse>(getGetTelegramUserLoginStatusUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(userLoginStatusBody)
   }
 );}
 

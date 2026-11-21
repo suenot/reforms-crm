@@ -45,6 +45,10 @@ export function mtcuteLoginClient(c: LoginCredentials): MtLoginClient {
       const u = await tg.signIn({ phone: o.phone, phoneCodeHash: o.phoneCodeHash, phoneCode: o.code });
       return { id: u.id, displayName: u.displayName };
     },
+    async signInQr(o) {
+      const u = await tg.signInQr(o);
+      return { id: u.id, displayName: u.displayName };
+    },
     async checkPassword(password) {
       const u = await tg.checkPassword(password);
       return { id: u.id, displayName: u.displayName };

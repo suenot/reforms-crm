@@ -1,5 +1,5 @@
 /**
- * The WhatsApp pairing's QR code as one SVG path (P71 M5): the server sends the module rows (`0` and `1`), never the QR string,
+ * A messenger pairing QR code as one SVG path (P71 M5): the server sends the module rows (`0` and `1`), never the QR string,
  * and the admin draws them, so no image or QR library is a dependency here. Pure, so a test holds it.
  */
 

@@ -39,19 +39,25 @@ export type TelegramUserStatusDto = z.infer<typeof telegramUserStatusDto>;
 // ---- the login (each step one call; nothing but the final session is kept)
 
 const flow = z.string().min(16).max(64);
-export const userLoginStartBody = z.strictObject({
+const loginCredentials = {
   apiId: z.number().int().positive().max(2 ** 31),
   apiHash: z.string().trim().regex(/^[a-f0-9]{32}$/i, "api_hash is 32 hex characters from my.telegram.org"),
+};
+export const userLoginStartBody = z.union([z.strictObject({
+  ...loginCredentials,
   phone: z.string().trim().regex(/^\+?[\d\s\-().]{7,24}$/, "a phone number in international format"),
-});
+}), z.strictObject({ ...loginCredentials, method: z.literal("qr") })]);
 export const userLoginCodeBody = z.strictObject({ flow, code: z.string().trim().regex(/^[\d\s]{4,12}$/, "the digits Telegram sent") });
 export const userLoginPasswordBody = z.strictObject({ flow, password: z.string().min(1).max(256) });
 export const userLoginCancelBody = z.strictObject({ flow });
+export const userLoginStatusBody = z.strictObject({ flow });
 export type UserLoginStartBody = z.infer<typeof userLoginStartBody>;
 
 export const userLoginStepDto = z.discriminatedUnion("step", [
   z.strictObject({ step: z.literal("code"), flow }),
   z.strictObject({ step: z.literal("password"), flow }),
+  /** Only QR modules reach the browser; the Telegram login URL stays on the server. */
+  z.strictObject({ step: z.literal("qr"), flow, qr: z.array(z.string().regex(/^[01]{21,177}$/)).max(177).nullable(), expiresAt: z.iso.datetime().nullable() }),
   /** `name` is the owner's own display name, so he sees which account was connected. */
   z.strictObject({ step: z.literal("done"), account: z.string(), name: z.string() }),
 ]);

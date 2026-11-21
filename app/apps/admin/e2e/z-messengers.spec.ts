@@ -239,6 +239,82 @@ test("messengers settings: the connect form drives M1's routes step by step, wit
   expect(page.url()).not.toMatch(/12345|secret|0123456789abcdef/);
 });
 
+test("messengers settings: Telegram QR login rotates and accepts a two-step password", async ({ page }) => {
+  const posts: { path: string; body: unknown }[] = [];
+  const flow = "flow-qr-0123456789abcdef";
+  const rows = (dark: string) => Array.from({ length: 21 }, (_, y) => Array.from({ length: 21 }, (_, x) => (x === y ? dark : "0")).join(""));
+  const expiresAt = "2099-01-01T00:00:00.000Z";
+  let connected = false;
+  let polls = 0;
+  const record = (r: Route) => posts.push({ path: new URL(r.request().url()).pathname, body: r.request().postDataJSON() });
+  await page.route(/\/api\/messengers\/telegram-user$/, (r) => r.fulfill({ json: { state: "on", project: P, accounts: connected ? [{ account: "42", state: "running", parked: null, fix: null, failures: 0, stored: 0 }] : [] } }));
+  await page.route(/\/login\/start$/, (r) => {
+    record(r);
+    return r.fulfill({ json: { step: "qr", flow, qr: rows("1"), expiresAt } });
+  });
+  await page.route(/\/login\/status$/, (r) => {
+    record(r);
+    polls++;
+    return r.fulfill({ json: polls === 1 ? { step: "qr", flow, qr: rows("0"), expiresAt } : { step: "password", flow } });
+  });
+  await page.route(/\/login\/password$/, (r) => {
+    record(r);
+    connected = true;
+    return r.fulfill({ json: { step: "done", account: "42", name: "Mark Owner" } });
+  });
+
+  await page.goto(at(P, "/messengers/settings"));
+  const form = page.getByTestId("telegram-connect");
+  await form.getByLabel("api_id").fill("12345");
+  await form.getByLabel("api_hash").fill("0123456789abcdef0123456789abcdef");
+  await expect(form.getByLabel("Phone")).toHaveValue("");
+  await form.getByRole("button", { name: "Sign in with QR code" }).click();
+  const qr = form.getByRole("img", { name: "QR code to scan with Telegram on your phone" });
+  await expect(qr).toBeVisible();
+  await expect(form.getByText(/Devices ▸ Link Desktop Device/)).toBeVisible();
+  const firstPath = await qr.locator("path").getAttribute("d");
+  await expect.poll(() => qr.locator("path").getAttribute("d")).not.toBe(firstPath);
+  await expect(form.getByLabel("Password")).toBeVisible();
+  await expect(qr).toHaveCount(0);
+  await form.getByLabel("Password").fill("secret");
+  await form.getByRole("button", { name: "Connect" }).click();
+  await expect(page.getByRole("list", { name: "Telegram accounts" }).getByText("Telegram account 42")).toBeVisible();
+  expect(posts).toEqual([
+    { path: "/api/messengers/telegram-user/login/start", body: { apiId: 12345, apiHash: "0123456789abcdef0123456789abcdef", method: "qr" } },
+    { path: "/api/messengers/telegram-user/login/status", body: { flow } },
+    { path: "/api/messengers/telegram-user/login/status", body: { flow } },
+    { path: "/api/messengers/telegram-user/login/password", body: { flow, password: "secret" } },
+  ]);
+  expect(page.url()).not.toMatch(/flow-qr|12345|secret|0123456789abcdef/);
+});
+
+test("messengers settings: an expired Telegram QR login can restart and leaving two-step login cancels its flow", async ({ page }) => {
+  const flows = ["flow-qr-expired-0123456789", "flow-qr-restarted-0123456789"];
+  const cancelled: unknown[] = [];
+  let starts = 0;
+  await page.route(/\/api\/messengers\/telegram-user$/, (r) => r.fulfill({ json: { state: "on", project: P, accounts: [] } }));
+  await page.route(/\/login\/start$/, (r) => r.fulfill({ json: { step: "qr", flow: flows[starts++], qr: null, expiresAt: null } }));
+  await page.route(/\/login\/status$/, (r) => {
+    const body: unknown = r.request().postDataJSON();
+    if (JSON.stringify(body) === JSON.stringify({ flow: flows[0] })) return r.fulfill({ status: 409, json: { code: "wrong_state", error: "The QR login expired." } });
+    return r.fulfill({ json: { step: "password", flow: flows[1] } });
+  });
+  await page.route(/\/login\/cancel$/, (r) => {
+    cancelled.push(r.request().postDataJSON());
+    return r.fulfill({ json: { ok: true } });
+  });
+  await page.goto(at(P, "/messengers/settings"));
+  const form = page.getByTestId("telegram-connect");
+  await form.getByLabel("api_id").fill("12345");
+  await form.getByLabel("api_hash").fill("0123456789abcdef0123456789abcdef");
+  await form.getByRole("button", { name: "Sign in with QR code" }).click();
+  await expect(form.getByRole("alert")).toContainText("The QR login expired. Start a new login.");
+  await form.getByRole("button", { name: "Sign in with QR code" }).click();
+  await expect(form.getByLabel("Password")).toBeVisible();
+  await page.getByRole("navigation", { name: "Sections" }).first().getByRole("link", { name: "Messengers" }).click();
+  await expect.poll(() => cancelled).toContainEqual({ flow: flows[1] });
+});
+
 test("messengers settings: WhatsApp shows the QR code only after Connect, then the linked number", async ({ page }) => {
   // P71 M5: the routes are stubbed; the server side of the pairing runs on a fake Baileys socket in
   // `apps/server/test/messengers/accounts/whatsapp.test.ts`. Nothing here reaches WhatsApp and no code is scanned.

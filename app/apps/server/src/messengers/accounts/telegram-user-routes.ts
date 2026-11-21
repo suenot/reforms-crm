@@ -6,6 +6,7 @@ import {
   userLoginCodeBody,
   userLoginPasswordBody,
   userLoginStartBody,
+  userLoginStatusBody,
   userLoginStepDto,
 } from "@hub/contract/messengers";
 import { AdapterError } from "@hub/messengers";
@@ -45,9 +46,14 @@ export function telegramUserRoutes({ tg, adminPort }: MessengersContext) {
   };
   return new Hono()
     .get("/api/messengers/telegram-user", (c) => c.json(tg ? tg.status() : { state: "off", reason: "not set up", accounts: [] }))
-    .post("/api/messengers/telegram-user/login/start", (c) =>
-      guarded(c, userLoginStartBody, async (b, tg) => noProject(c, tg) ?? c.json(userLoginStepDto.parse(await tg.login.start(b)))),
-    )
+    .post("/api/messengers/telegram-user/login/start", (c) => {
+      c.header("Cache-Control", "no-store");
+      return guarded(c, userLoginStartBody, async (b, tg) => noProject(c, tg) ?? c.json(userLoginStepDto.parse(await tg.login.start(b))));
+    })
+    .post("/api/messengers/telegram-user/login/status", (c) => {
+      c.header("Cache-Control", "no-store");
+      return guarded(c, userLoginStatusBody, async (b, tg) => c.json(userLoginStepDto.parse(await tg.login.status(b.flow))));
+    })
     .post("/api/messengers/telegram-user/login/code", (c) => guarded(c, userLoginCodeBody, async (b, tg) => c.json(userLoginStepDto.parse(await tg.login.code(b.flow, b.code)))))
     .post("/api/messengers/telegram-user/login/password", (c) =>
       guarded(c, userLoginPasswordBody, async (b, tg) => c.json(userLoginStepDto.parse(await tg.login.password(b.flow, b.password)))),

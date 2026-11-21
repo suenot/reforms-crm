@@ -21,7 +21,7 @@ export const GENERATED_OPERATIONS = {
     "getInboundDetail", "getInboundText", "listLeads", "getLeadDetail", "notNowLead", "spamLead", "undoLead",
   ],
   messengers: [
-    "getTelegramUserStatus", "startTelegramUserLogin", "sendTelegramUserCode", "sendTelegramUserPassword", "cancelTelegramUserLogin", "disconnectTelegramUser", "getWhatsAppStatus", "startWhatsAppConnect", "readWhatsAppConnect", "cancelWhatsAppConnect", "disconnectWhatsApp",
+    "getTelegramUserStatus", "startTelegramUserLogin", "getTelegramUserLoginStatus", "sendTelegramUserCode", "sendTelegramUserPassword", "cancelTelegramUserLogin", "disconnectTelegramUser", "getWhatsAppStatus", "startWhatsAppConnect", "readWhatsAppConnect", "cancelWhatsAppConnect", "disconnectWhatsApp",
     "getAutolinkState", "previewAutolink", "findAutolinkRecords", "linkChatRecord", "createChatRecord", "hideChat", "unhideChat", "dropHideProposals", "listAccountDialogs", "changeChatClient", "undoChatClient", "addChatClientEmail", "unlinkChat", "neverLinkChat",
     "listMessengerChats", "getMessengerConversation", "createMessengerDraft", "editMessengerDraft", "skipMessengerDraft", "restoreMessengerDraft", "prepareMessengerReply", "setMessengerChatRules", "markMessengerChatDone", "undoMessengerChatDone",
     "createAutopilotTicket", "getAutopilot", "setAutopilot", "getProjectAutopilot", "setProjectAutopilot",
@@ -47,7 +47,7 @@ export const DOORS: Readonly<Record<string, readonly GeneratedOperation[]>> = {
   "lib/api/send.ts": ["createSendTicket", "createBatchSendTicket", "sendOneMailDraft", "getBatchSend", "runBatchSend", "stopBatchSend", "confirmLeadReview", "cancelSend", "stopSends", "resumeSends"],
   "lib/api/messengers/send.ts": ["createSendTicket", "sendMessengerDraft"],
   "lib/api/connections.ts": ["setConnectionSecret", "removeConnectionSecret"],
-  "lib/api/messengers/telegram-user.ts": ["startTelegramUserLogin", "sendTelegramUserCode", "sendTelegramUserPassword", "cancelTelegramUserLogin", "disconnectTelegramUser"],
+  "lib/api/messengers/telegram-user.ts": ["startTelegramUserLogin", "getTelegramUserLoginStatus", "sendTelegramUserCode", "sendTelegramUserPassword", "cancelTelegramUserLogin", "disconnectTelegramUser"],
   "lib/api/messengers/whatsapp.ts": ["startWhatsAppConnect", "readWhatsAppConnect", "cancelWhatsAppConnect", "disconnectWhatsApp"],
   "lib/api/messengers/autopilot.ts": ["createAutopilotTicket", "setAutopilot", "setProjectAutopilot"],
   "lib/api/instance.ts": ["openLocal"],

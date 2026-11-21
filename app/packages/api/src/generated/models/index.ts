@@ -768,6 +768,7 @@ export * from './userLoginCancelled';
 export * from './userLoginCodeBody';
 export * from './userLoginPasswordBody';
 export * from './userLoginStartBody';
+export * from './userLoginStatusBody';
 export * from './userLoginStep';
 export * from './waConnectFlowBody';
 export * from './waConnectStarted';

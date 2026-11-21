@@ -1,7 +1,7 @@
 import { chatRulesBody, messengerChatDoneDto, messengerChatDto, messengerChatsDto, messengerChatsQuery, messengerConversationDto, messengerDraftDto, messengerDraftTextBody, messengerPrepareBody, messengerSkippedDto } from "@hub/contract/messenger-panel";
 import {
   autolinkCreateBody, autolinkDialogsBody, autolinkHiddenDto, autolinkHideBody, autolinkLinkBody, autolinkLinkedDto, autolinkMoveBody, autolinkPreviewDto, autolinkProposalsDropBody, autolinkProposalsDroppedDto, autolinkRecordsBody, autolinkRecordsDto, autolinkStateDto,
-  chatEmailBody, chatEmailDto, chatMovedDto, chatMoveUndoBody, chatMoveUndoneDto, chatUnlinkedDto, telegramUserStatusDto, userDialogsDto, userDisconnectedDto, userLoginCancelBody, userLoginCancelledDto, userLoginCodeBody, userLoginPasswordBody, userLoginStartBody, userLoginStepDto,
+  chatEmailBody, chatEmailDto, chatMovedDto, chatMoveUndoBody, chatMoveUndoneDto, chatUnlinkedDto, telegramUserStatusDto, userDialogsDto, userDisconnectedDto, userLoginCancelBody, userLoginCancelledDto, userLoginCodeBody, userLoginPasswordBody, userLoginStartBody, userLoginStatusBody, userLoginStepDto,
   waConnectFlowBody, waConnectStartedDto, waConnectStepDto, whatsappStatusDto,
 } from "@hub/contract/messengers";
 import { accountParam, sendParam, slugParam } from "@hub/contract/requests";
@@ -30,6 +30,7 @@ const gated = [400, 403, 404, 409];
 export const operations: Operation[] = [
   { method: "get", path: "/api/messengers/telegram-user", operationId: "getTelegramUserStatus", summary: "Read the Telegram accounts of this Mac", tags: ["messengers"], reply: { name: "TelegramUserStatus", schema: telegramUserStatusDto }, errors: [503] },
   { method: "post", path: "/api/messengers/telegram-user/login/start", operationId: "startTelegramUserLogin", summary: "Start a Telegram sign-in", tags: ["messengers"], body: { name: "UserLoginStartBody", schema: userLoginStartBody }, reply: step, errors: [400, 403, 409] },
+  { method: "post", path: "/api/messengers/telegram-user/login/status", operationId: "getTelegramUserLoginStatus", summary: "Read a Telegram QR sign-in", tags: ["messengers"], body: { name: "UserLoginStatusBody", schema: userLoginStatusBody }, reply: step, errors: [400, 403, 409] },
   { method: "post", path: "/api/messengers/telegram-user/login/code", operationId: "sendTelegramUserCode", summary: "Answer the sign-in's code", tags: ["messengers"], body: { name: "UserLoginCodeBody", schema: userLoginCodeBody }, reply: step, errors: [400, 403, 404] },
   { method: "post", path: "/api/messengers/telegram-user/login/password", operationId: "sendTelegramUserPassword", summary: "Answer the sign-in's two-step password", tags: ["messengers"], body: { name: "UserLoginPasswordBody", schema: userLoginPasswordBody }, reply: step, errors: [400, 403, 404] },
   { method: "post", path: "/api/messengers/telegram-user/login/cancel", operationId: "cancelTelegramUserLogin", summary: "Cancel a Telegram sign-in", tags: ["messengers"], body: { name: "UserLoginCancelBody", schema: userLoginCancelBody }, reply: cancelled, errors: [400, 403] },

@@ -3696,6 +3696,46 @@
         }
       }
     },
+    "/api/messengers/telegram-user/login/status": {
+      "post": {
+        "operationId": "getTelegramUserLoginStatus",
+        "summary": "Read a Telegram QR sign-in",
+        "tags": [
+          "messengers"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLoginStatusBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read a Telegram QR sign-in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserLoginStep"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        }
+      }
+    },
     "/api/messengers/telegram-user/login/code": {
       "post": {
         "operationId": "sendTelegramUserCode",
@@ -18936,28 +18976,56 @@
         "additionalProperties": false
       },
       "UserLoginStartBody": {
-        "type": "object",
-        "properties": {
-          "apiId": {
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 2147483648
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "apiId": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483648
+              },
+              "apiHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              },
+              "phone": {
+                "type": "string",
+                "pattern": "^\\+?[\\d\\s\\-().]{7,24}$"
+              }
+            },
+            "required": [
+              "apiId",
+              "apiHash",
+              "phone"
+            ],
+            "additionalProperties": false
           },
-          "apiHash": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{32}$"
-          },
-          "phone": {
-            "type": "string",
-            "pattern": "^\\+?[\\d\\s\\-().]{7,24}$"
+          {
+            "type": "object",
+            "properties": {
+              "apiId": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483648
+              },
+              "apiHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              },
+              "method": {
+                "type": "string",
+                "const": "qr"
+              }
+            },
+            "required": [
+              "apiId",
+              "apiHash",
+              "method"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "apiId",
-          "apiHash",
-          "phone"
-        ],
-        "additionalProperties": false
+        ]
       },
       "UserLoginStep": {
         "oneOf": [
@@ -19004,6 +19072,54 @@
             "properties": {
               "step": {
                 "type": "string",
+                "const": "qr"
+              },
+              "flow": {
+                "type": "string",
+                "minLength": 16,
+                "maxLength": 64
+              },
+              "qr": {
+                "anyOf": [
+                  {
+                    "maxItems": 177,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[01]{21,177}$"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "step",
+              "flow",
+              "qr",
+              "expiresAt"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "string",
                 "const": "done"
               },
               "account": {
@@ -19021,6 +19137,20 @@
             "additionalProperties": false
           }
         ]
+      },
+      "UserLoginStatusBody": {
+        "type": "object",
+        "properties": {
+          "flow": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "flow"
+        ],
+        "additionalProperties": false
       },
       "UserLoginCodeBody": {
         "type": "object",

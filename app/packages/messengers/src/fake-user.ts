@@ -100,6 +100,9 @@ export class FakeMtClient implements MtClient {
 export class FakeLoginClient implements MtLoginClient {
   closed = 0;
   sentTo: string[] = [];
+  qrUrl: ((url: string, expires: Date) => void) | null = null;
+  qrResolve: ((me: MtMe) => void) | null = null;
+  qrReject: ((err: unknown) => void) | null = null;
   constructor(
     readonly o: { twoFactor?: boolean; me?: MtMe; sendError?: unknown } = {},
   ) {}
@@ -112,6 +115,14 @@ export class FakeLoginClient implements MtLoginClient {
     if (o.code !== "12345") throw new FakeRpcError(400, "PHONE_CODE_INVALID");
     if (this.o.twoFactor) throw new FakeRpcError(401, "SESSION_PASSWORD_NEEDED");
     return this.o.me ?? { id: 42, displayName: "Owner" };
+  }
+  signInQr(o: { onUrlUpdated: (url: string, expires: Date) => void; abortSignal: AbortSignal }): Promise<MtMe> {
+    this.qrUrl = o.onUrlUpdated;
+    return new Promise((resolve, reject) => {
+      this.qrResolve = resolve;
+      this.qrReject = reject;
+      o.abortSignal.addEventListener("abort", () => reject(o.abortSignal.reason), { once: true });
+    });
   }
   async checkPassword(password: string): Promise<MtMe> {
     if (password !== "pw") throw new FakeRpcError(400, "PASSWORD_HASH_INVALID");

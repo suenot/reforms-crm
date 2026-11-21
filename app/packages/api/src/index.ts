@@ -9,7 +9,7 @@ export {
   getLeadPass, redoLead, runLeadPass,
 } from "./generated/mail/mail";
 export {
-  addChatClientEmail, cancelTelegramUserLogin, cancelWhatsAppConnect, changeChatClient, createChatRecord, createMessengerDraft, disconnectTelegramUser, disconnectWhatsApp, dropHideProposals, editMessengerDraft, findAutolinkRecords, getAutolinkState, getMessengerConversation, getTelegramUserStatus, getWhatsAppStatus, hideChat,
+  addChatClientEmail, cancelTelegramUserLogin, cancelWhatsAppConnect, changeChatClient, createChatRecord, createMessengerDraft, disconnectTelegramUser, disconnectWhatsApp, dropHideProposals, editMessengerDraft, findAutolinkRecords, getAutolinkState, getMessengerConversation, getTelegramUserLoginStatus, getTelegramUserStatus, getWhatsAppStatus, hideChat,
   linkChatRecord, listAccountDialogs, listMessengerChats, markMessengerChatDone, neverLinkChat, prepareMessengerReply, previewAutolink, readWhatsAppConnect, restoreMessengerDraft, sendTelegramUserCode, sendTelegramUserPassword, setMessengerChatRules, skipMessengerDraft, startTelegramUserLogin, startWhatsAppConnect, undoChatClient, undoMessengerChatDone, unhideChat, unlinkChat,
   createAutopilotTicket, getAutopilot, getProjectAutopilot, setAutopilot, setProjectAutopilot,
 } from "./generated/messengers/messengers";

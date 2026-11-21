@@ -1,12 +1,12 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatRulesBody, MessengerChatsQuery } from "@hub/contract/messenger-panel";
 import type { LiveTopic } from "@hub/contract/live";
 import type { MessengerSendPreviewDto } from "@hub/contract/messenger";
-import type { AutolinkLinkedDto, AutolinkRecordDto, ChatMovedDto, UserLoginStartBody, WaConnectStepDto } from "@hub/contract/messengers";
-import { sentence } from "@/lib/api/client";
+import type { AutolinkLinkedDto, AutolinkRecordDto, ChatMovedDto, UserLoginStartBody, UserLoginStepDto, WaConnectStepDto } from "@hub/contract/messengers";
+import { ApiFailure, sentence } from "@/lib/api/client";
 import { autopilotApi } from "@/lib/api/messengers/autopilot";
 import { messengersApi } from "@/lib/api/messengers/panel";
 import { messengerSendApi } from "@/lib/api/messengers/send";
@@ -49,8 +49,8 @@ export function useDisconnectAccount(channel: "telegram_user" | "whatsapp", acco
 
 export const useTelegramUser = () => useQuery({ queryKey: keys.telegramUser(), queryFn: telegramUserApi.status });
 
-/** Where the connect form stands: the first step, the code, the 2FA password, or done with the owner's own display name. */
-export type LoginStep = { step: "start" } | { step: "code"; flow: string } | { step: "password"; flow: string } | { step: "done"; name: string };
+/** Where the connect form stands: the first step, the code, a QR code, the 2FA password, or done with the owner's own display name. The QR rows and flow live only in form state, never in a query cache or address. */
+export type LoginStep = { step: "start" } | Exclude<UserLoginStepDto, { step: "done" }> | { step: "done"; name: string };
 
 /**
  * The connect form's steps over M1's routes (decision 0036 point 4), one call each. The flow id lives in this state only; the
@@ -62,31 +62,95 @@ export function useTelegramLogin() {
   const [state, setState] = useState<LoginStep>({ step: "start" });
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
+  const activeQrFlow = useRef<string | null>(null);
+  const mounted = useRef(true);
+  const qrFlow = state.step === "qr" ? state.flow : null;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (activeQrFlow.current) void telegramUserApi.cancel(activeQrFlow.current).catch(() => undefined);
+    };
+  }, []);
 
   const run = useCallback(
-    async (call: () => Promise<{ step: "code" | "password"; flow: string } | { step: "done"; account: string; name: string }>) => {
+    async (call: () => Promise<UserLoginStepDto>) => {
       setBusy(true);
       setAlert(null);
       try {
         const r = await call();
-        setState(r.step === "done" ? { step: "done", name: r.name } : { step: r.step, flow: r.flow });
+        if (!mounted.current) {
+          if (r.step === "qr") await telegramUserApi.cancel(r.flow).catch(() => undefined);
+          return;
+        }
+        if (r.step === "qr") activeQrFlow.current = r.flow;
+        if (r.step === "done") activeQrFlow.current = null;
+        setState(r.step === "done" ? { step: "done", name: r.name } : r);
         if (r.step === "done") await qc.invalidateQueries({ queryKey: keys.telegramUser() });
       } catch (e) {
-        setAlert(sentence(e));
+        if (mounted.current) setAlert(sentence(e));
       } finally {
-        setBusy(false);
+        if (mounted.current) setBusy(false);
       }
     },
     [qc],
   );
 
+  useEffect(() => {
+    if (!qrFlow) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const r = await telegramUserApi.loginStatus(qrFlow);
+        if (!live || activeQrFlow.current !== qrFlow) return;
+        setAlert(null);
+        if (r.step === "done") {
+          activeQrFlow.current = null;
+          setState({ step: "done", name: r.name });
+          await qc.invalidateQueries({ queryKey: keys.telegramUser() });
+          return;
+        }
+        setState(r);
+        if (r.step === "password" || r.step === "code") return;
+      } catch (e) {
+        if (!live || activeQrFlow.current !== qrFlow) return;
+        if (e instanceof ApiFailure && e.status === 409) {
+          activeQrFlow.current = null;
+          setState({ step: "start" });
+          setAlert(`${sentence(e)} Start a new login.`);
+          return;
+        }
+        setAlert(sentence(e));
+      }
+      if (live && activeQrFlow.current === qrFlow) timer = setTimeout(() => void poll(), 2000);
+    };
+    timer = setTimeout(() => void poll(), 2000);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [qrFlow, qc]);
+
   const start = useCallback((b: UserLoginStartBody) => run(() => telegramUserApi.start(b)), [run]);
   const code = useCallback((c: string) => (state.step === "code" ? run(() => telegramUserApi.code(state.flow, c)) : undefined), [run, state]);
   const password = useCallback((p: string) => (state.step === "password" ? run(() => telegramUserApi.password(state.flow, p)) : undefined), [run, state]);
   const cancel = useCallback(async () => {
-    if (state.step === "code" || state.step === "password") await telegramUserApi.cancel(state.flow).catch(() => undefined);
+    const qr = activeQrFlow.current;
+    if (qr) {
+      try {
+        await telegramUserApi.cancel(qr);
+      } catch (e) {
+        if (mounted.current && activeQrFlow.current === qr) setAlert(sentence(e));
+        return;
+      }
+      if (!mounted.current || activeQrFlow.current !== qr) return;
+    }
+    activeQrFlow.current = null;
     setAlert(null);
     setState({ step: "start" });
+    if (!qr && (state.step === "code" || state.step === "password")) await telegramUserApi.cancel(state.flow).catch(() => undefined);
   }, [state]);
   return { state, busy, alert, start, code, password, cancel };
 }

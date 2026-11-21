@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface UserLoginStartBody {
+export type UserLoginStartBody = {
   /**
      * @maximum 2147483648
      * @exclusiveMinimum 0
@@ -16,4 +16,13 @@ export interface UserLoginStartBody {
   apiHash: string;
   /** @pattern ^\+?[\d\s\-().]{7,24}$ */
   phone: string;
-}
+} | {
+  /**
+     * @maximum 2147483648
+     * @exclusiveMinimum 0
+     */
+  apiId: number;
+  /** @pattern ^[a-f0-9]{32}$ */
+  apiHash: string;
+  method: 'qr';
+};
